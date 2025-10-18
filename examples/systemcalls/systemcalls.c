@@ -1,4 +1,12 @@
 #include "systemcalls.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <errno.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -16,7 +24,15 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-
+    if(cmd == NULL) {
+        return false;
+    }
+    else{
+        int ret = system(cmd);
+        if(ret != 0) {
+            return false;
+        }
+    }
     return true;
 }
 
@@ -59,6 +75,39 @@ bool do_exec(int count, ...)
  *
 */
 
+    __pid_t pid = fork();
+    if (pid < 0) {
+        // Fork failed
+        va_end(args);
+        return false;
+    } else if (pid == 0) {
+        // Child process
+        if (execv(command[0], command) == -1) {
+            // Exec failed
+            perror("Exec failed");
+            va_end(args);
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        // Parent process
+        int status;
+        if (waitpid(pid, &status, 0) == -1) {
+            // Waitpid failed
+            va_end(args);
+            return false;
+        }
+        if (WIFEXITED(status)) {
+            int exit_status = WEXITSTATUS(status);
+            if (exit_status != 0) {
+                va_end(args);
+                return false;
+            }
+        } else {
+            va_end(args);
+            return false;
+        }
+    }
+
     va_end(args);
 
     return true;
@@ -92,7 +141,52 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
-
+    __pid_t pid = fork();
+    if (pid < 0) {
+        // Fork failed 
+    
+        va_end(args);
+        return false;
+    } else if (pid == 0) {
+        // Child process
+        int fd = open(outputfile, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR);
+        if (fd < 0) {
+            perror("Open output file failed");
+            va_end(args);
+            exit(EXIT_FAILURE);
+        }
+        if (dup2(fd, STDOUT_FILENO) < 0) {
+            perror("Dup2 failed");
+            close(fd);
+            va_end(args);
+            exit(EXIT_FAILURE);
+        }
+        close(fd);
+        if (execv(command[0], command) == -1) {
+            // Exec failed
+            perror("Exec failed");
+            va_end(args);
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        // Parent process
+        int status;
+        if (waitpid(pid, &status, 0) == -1) {
+            // Waitpid failed
+            va_end(args);
+            return false;
+        }
+        if (WIFEXITED(status)) {
+            int exit_status = WEXITSTATUS(status);
+            if (exit_status != 0) {
+                va_end(args);
+                return false;
+            }
+        } else {
+            va_end(args);
+            return false;
+        }
+    }
     va_end(args);
 
     return true;
