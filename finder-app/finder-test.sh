@@ -12,9 +12,16 @@ set -e
 set -u
 
 NUMFILES=10
-WRITESTR=AELD_IS_FUN
+## Ensure the result file exists so reading it won't fail when the script is run
+if [ ! -f /tmp/assignment4-result.txt ]; then
+	touch /tmp/assignment4-result.txt
+fi
+
+# Load previous finder output (if any) as default write string; this may be
+# empty if the result file has no content yet.
+WRITESTR=$(cat /tmp/assignment4-result.txt)
 WRITEDIR=/tmp/aeld-data
-username=$(cat conf/username.txt)
+username=$(cat /etc/finder-app/conf/username.txt)
 
 if [ $# -lt 3 ]
 then
@@ -38,7 +45,7 @@ echo "Writing ${NUMFILES} files containing string ${WRITESTR} to ${WRITEDIR}"
 rm -rf "${WRITEDIR}"
 
 # create $WRITEDIR if not assignment1
-assignment=`cat ./conf/assignment.txt`
+assignment=`cat /etc/finder-app/conf/assignment.txt`
 
 if [ $assignment != 'assignment1' ]
 then
@@ -60,10 +67,17 @@ fi
 
 for i in $( seq 1 $NUMFILES)
 do
-	./writer "$WRITEDIR/${username}$i.txt" "$WRITESTR"
+	usr/bin/writer "$WRITEDIR/${username}$i.txt" "$WRITESTR"
 done
 
-OUTPUTSTRING=$(./finder.sh "$WRITEDIR" "$WRITESTR")
+OUTPUTSTRING=$(/usr/bin/finder.sh "$WRITEDIR" "$WRITESTR")
+
+# Run the finder command and save its output to a result file for grading
+# The test harness expects the finder output to be available at /tmp/assignment4-result.txt
+./finder.sh "$WRITEDIR" "$WRITESTR" > /tmp/assignment4-result.txt
+
+# Also capture the output in a variable for the existing in-script checks
+OUTPUTSTRING=$(cat /tmp/assignment4-result.txt)
 
 # remove temporary directories
 rm -rf /tmp/aeld-data
